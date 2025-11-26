@@ -1,4 +1,4 @@
-# Nova Ecosystem Releases
+# NovaEco Releases
 
 This repository is the central, authoritative source for all stable, ecosystem-wide releases.
 
