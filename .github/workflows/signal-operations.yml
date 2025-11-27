@@ -1,0 +1,28 @@
+name: Signal Operations
+on:
+  release:
+    types: [published]
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    # 1. Safety Check: Only run if the secrets exist (prevents errors on forks)
+    if: ${{ secrets.DOWNSTREAM_DISPATCH_TARGET != '' && secrets.OPS_TARGET_OWNER != '' }}
+    steps:
+      # 2. Generate a short-lived Access Token
+      - name: Generate App Token
+        id: generate_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.OPS_APP_ID }}
+          private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
+          owner: ${{ secrets.OPS_TARGET_OWNER }} # Dynamically set from secret
+
+      # 3. Dispatch the Signal using the Token
+      - name: Dispatch Signal
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ steps.generate_token.outputs.token }}
+          repository: ${{ secrets.DOWNSTREAM_DISPATCH_TARGET }} # Dynamically set from secret
+          event-type: deploy-release
+          client-payload: '{"version": "${{ github.event.release.tag_name }}"}'
