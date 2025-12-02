@@ -1,32 +1,32 @@
-name: Validate Published Release Manifest
+name: Validate Release Manifest
 
 on:
   release:
-    types: [published] # Triggers when a new release is published [1]
+    types: [published]
 
 jobs:
-  validate-manifest:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Get release body from event
-        id: get_release
+      - name: Extract Manifest
+        id: extract
         run: |
-          # The release body is in the event payload
-          # We extract it, remove the ```json fences, and save it to a file
           echo "${{ github.event.release.body }}" | sed 's/```json//g' | sed 's/```//g' > manifest.json
 
-      - name: Validate JSON syntax
+      - name: Validate JSON Syntax
         run: |
           # Try to parse the file with jq.
           # If it's not valid JSON, jq will exit with an error and fail the job.
-          jq. manifest.json
-          echo "Release manifest.json is valid JSON."
+          jq . manifest.json
 
-      - name: Check for required 'version' key
+      - name: Validate Schema Structure
         run: |
-          # A more advanced test: check that a 'version' key exists
-          if! jq -e '.version' manifest.json > /dev/null; then
-            echo "Error: release-manifest.json is missing the required 'version' key."
-            exit 1
-          fi
-          echo "Release manifest.json contains all required keys."
+          # Ensure required top-level keys exist
+          jq -e '.version' manifest.json
+          jq -e '.artifacts' manifest.json
+          
+          # Ensure categories exist (optional but recommended for structure)
+          jq -e '.artifacts.core' manifest.json
+          jq -e '.artifacts.enablers' manifest.json
+          jq -e '.artifacts.sectors' manifest.json
+          jq -e '.artifacts.workers' manifest.json
