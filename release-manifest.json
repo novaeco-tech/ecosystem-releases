@@ -1,0 +1,11 @@
+{
+    "version": "v2025.12.01",
+    "description": "Initial release for December 2025 with no artifacts included.",
+    "artifacts": {
+        "core": {},
+        "enablers": {},
+        "sectors": {},
+        "products": {},
+        "workers": {}
+    }
+}
