@@ -50,7 +50,7 @@ Publishing a new release is a **manual, human-gated** action that triggers the p
 Clicking "Publish" triggers two parallel workflows:
 
 1.  **Validation (`validate-release.yml`):** Ensures your JSON syntax is correct and required fields are present.
-2.  **Signaling (`signal-operations.yml`):** Sends a secure, blind dispatch event to the commercial operator (`circular-engineering`) to begin the production deployment.
+2.  **Signaling (`signal-operations.yml`):** Sends a secure, blind dispatch event to the commercial operator to begin the production deployment.
 
 ### Example: Sample Configuration (release-manifest.json)
 

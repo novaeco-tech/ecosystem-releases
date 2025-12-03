@@ -1,28 +1,79 @@
-name: Signal Operations
+name: Promote Release
+
 on:
-  release:
-    types: [published]
+  repository_dispatch:
+    types: [promote-release]
+    # Payload: { "manifest": "...", "status": "qa_passed" }
 
 jobs:
-  dispatch:
+  release:
     runs-on: ubuntu-latest
-    # 1. Safety Check: Only run if the secrets exist (prevents errors on forks)
-    if: ${{ secrets.DOWNSTREAM_DISPATCH_TARGET != '' && secrets.OPS_TARGET_OWNER != '' }}
     steps:
-      # 2. Generate a short-lived Access Token
-      - name: Generate App Token
-        id: generate_token
-        uses: actions/create-github-app-token@v1
+      - uses: actions/checkout@v4
         with:
-          app-id: ${{ secrets.OPS_APP_ID }}
-          private-key: ${{ secrets.OPS_APP_PRIVATE_KEY }}
-          owner: ${{ secrets.OPS_TARGET_OWNER }} # Dynamically set from secret
+          fetch-depth: 0 # Needed to list all tags
 
-      # 3. Dispatch the Signal using the Token
-      - name: Dispatch Signal
+      - name: Calculate Next CalVer
+        id: calver
+        run: |
+          # 1. Get Year.Month
+          YM=$(date +'%Y.%m')
+          
+          # 2. Find existing tags matching vYYYY.MM.*
+          # filtering for tags that match the pattern v2026.11.[0-9]+
+          LAST_TAG=$(git tag --list "v$YM.*" --sort=-v:refname | head -n 1)
+          
+          if [ -z "$LAST_TAG" ]; then
+            # First release of the month
+            NEW_TAG="v$YM.01"
+          else
+            # Extract counter and increment
+            # v2026.11.05 -> 05
+            COUNTER=${LAST_TAG##*.}
+            # 10# forces base 10 to avoid octal interpretation of 08/09
+            NEXT_COUNTER=$((10#$COUNTER + 1))
+            # Pad with leading zero if needed (01, 02.. 09, 10)
+            PADDED_COUNTER=$(printf "%02d" $NEXT_COUNTER)
+            NEW_TAG="v$YM.$PADDED_COUNTER"
+          fi
+          
+          echo "Next Version: $NEW_TAG"
+          echo "TAG=$NEW_TAG" >> $GITHUB_ENV
+
+      - name: Commit Manifest
+        run: |
+          # Save the JSON payload to release-manifest.json
+          echo '${{ github.event.client_payload.manifest }}' > release-manifest.json
+          
+          # Configure Git
+          git config user.name "NovaEco Bot"
+          git config user.email "bot@novaeco.tech"
+          
+          # Commit
+          git add release-manifest.json
+          git commit -m "Release ${{ env.TAG }}"
+          git tag -a ${{ env.TAG }} -m "Stable Release ${{ env.TAG }}"
+          git push origin main --tags
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.TAG }}
+          body: |
+            **NovaEco Stable Release ${{ env.TAG }}**
+            
+            This release has passed all QA checks.
+            
+            **QA Status:** ${{ github.event.client_payload.status }}
+            [View QA Logs](${{ github.event.client_payload.qa_run_url }})
+          files: release-manifest.json
+
+      - name: Signal Operations
+        # Safety: Only run if the target repo secret is configured
+        if: ${{ secrets.DOWNSTREAM_DISPATCH_TARGET != '' }}
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ steps.generate_token.outputs.token }}
-          repository: ${{ secrets.DOWNSTREAM_DISPATCH_TARGET }} # Dynamically set from secret
+          token: ${{ secrets.OPS_PAT }}
+          repository: ${{ secrets.DOWNSTREAM_DISPATCH_TARGET }}
           event-type: deploy-release
-          client-payload: '{"version": "${{ github.event.release.tag_name }}"}'
+          client-payload: '{"version": "${{ env.TAG }}"}'
